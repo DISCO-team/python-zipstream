@@ -20,7 +20,7 @@ from .compat import (
     ZIP64_VERSION,
     ZIP_BZIP2, BZIP2_VERSION,
     ZIP_LZMA, LZMA_VERSION,
-    SEEK_SET, SEEK_CUR, SEEK_END)
+)
 
 from zipfile import (
     ZIP_STORED, ZIP64_LIMIT, ZIP_FILECOUNT_LIMIT, ZIP_MAX_COMMENT,
@@ -28,7 +28,9 @@ from zipfile import (
     structCentralDir, structEndArchive64, structEndArchive, structEndArchive64Locator,
     stringCentralDir, stringEndArchive64, stringEndArchive, stringEndArchive64Locator,
     structFileHeader, stringFileHeader,
-    zlib, crc32)
+    zlib, crc32,
+    LargeZipFile,
+)
 
 stringDataDescriptor = b'PK\x07\x08'  # magic number for data descriptor
 
@@ -202,8 +204,7 @@ class ZipFile(zipfile.ZipFile):
         # check for valid comment length
         if len(comment) >= ZIP_MAX_COMMENT:
             if self.debug:
-                print('Archive comment is too long; truncating to %d bytes'
-                        % ZIP_MAX_COMMENT)
+                print('Archive comment is too long; truncating to %d bytes' % ZIP_MAX_COMMENT)
             comment = comment[:ZIP_MAX_COMMENT]
         self._comment = comment
         self._didModify = True
@@ -232,8 +233,7 @@ class ZipFile(zipfile.ZipFile):
         """Put the bytes from filename into the archive under the name
         `arcname`."""
         if not self.fp:
-            raise RuntimeError(
-                  "Attempt to write to ZIP archive that was already closed")
+            raise RuntimeError("Attempt to write to ZIP archive that was already closed")
         if (filename is None and iterable is None) or (filename is not None and iterable is not None):
             raise ValueError("either (exclusively) filename or iterable shall be not None")
 
@@ -291,8 +291,7 @@ class ZipFile(zipfile.ZipFile):
         zinfo.CRC = CRC = 0
         zinfo.compress_size = compress_size = 0
         # Compressed size can be larger than uncompressed size
-        zip64 = self._allowZip64 and \
-                zinfo.file_size * 1.05 > ZIP64_LIMIT
+        zip64 = self._allowZip64 and zinfo.file_size * 1.05 > ZIP64_LIMIT
         yield self.fp.write(zinfo.FileHeader(zip64))
         file_size = 0
         if filename:
@@ -377,8 +376,9 @@ class ZipFile(zipfile.ZipFile):
                     if extra:
                         # Append a ZIP64 field to the extra's
                         extra_data = struct.pack(
-                                b'<HH' + b'Q'*len(extra),
-                                1, 8*len(extra), *extra) + extra_data
+                            b'<HH' + b'Q'*len(extra),
+                            1, 8*len(extra), *extra
+                        ) + extra_data
                         min_version = ZIP64_VERSION
 
                     if zinfo.compress_type == ZIP_BZIP2:
@@ -417,19 +417,21 @@ class ZipFile(zipfile.ZipFile):
                 centDirCount = count
                 centDirSize = pos2 - pos1
                 centDirOffset = pos1
-                if (centDirCount >= ZIP_FILECOUNT_LIMIT or
-                    centDirOffset > ZIP64_LIMIT or
-                    centDirSize > ZIP64_LIMIT):
+                if (
+                        centDirCount >= ZIP_FILECOUNT_LIMIT or
+                        centDirOffset > ZIP64_LIMIT or
+                        centDirSize > ZIP64_LIMIT):
                     # Need to write the ZIP64 end-of-archive records
                     zip64endrec = struct.pack(
-                            structEndArchive64, stringEndArchive64,
-                            44, 45, 45, 0, 0, centDirCount, centDirCount,
-                            centDirSize, centDirOffset)
+                        structEndArchive64, stringEndArchive64,
+                        44, 45, 45, 0, 0, centDirCount, centDirCount,
+                        centDirSize, centDirOffset)
                     yield self.fp.write(zip64endrec)
 
                     zip64locrec = struct.pack(
-                            structEndArchive64Locator,
-                            stringEndArchive64Locator, 0, pos2, 1)
+                        structEndArchive64Locator,
+                        stringEndArchive64Locator, 0, pos2, 1
+                    )
                     yield self.fp.write(zip64locrec)
                     centDirCount = min(centDirCount, 0xFFFF)
                     centDirSize = min(centDirSize, 0xFFFFFFFF)
