@@ -6,7 +6,7 @@ Derived directly from zipfile.py
 """
 from __future__ import unicode_literals, print_function, with_statement
 
-__version__ = '1.1.4'
+__version__ = '1.1.5'
 
 import os
 import sys
@@ -209,16 +209,16 @@ class ZipFile(zipfile.ZipFile):
         self._comment = comment
         self._didModify = True
 
-    def write(self, filename, arcname=None, compress_type=None):
+    def write(self, filename, arcname=None, compress_type=None, attributes=None):
         # TODO: Reflect python's Zipfile.write
         #   - if filename is file, write as file
         #   - if filename is directory, write an empty directory
-        kwargs = {'filename': filename, 'arcname': arcname, 'compress_type': compress_type}
+        kwargs = {'filename': filename, 'arcname': arcname, 'compress_type': compress_type, 'attributes': attributes}
         self.paths_to_write.append(kwargs)
 
-    def write_iter(self, arcname, iterable, compress_type=None):
+    def write_iter(self, arcname, iterable, compress_type=None, attributes=None):
         """Write the bytes iterable `iterable` to the archive under the name `arcname`."""
-        kwargs = {'arcname': arcname, 'iterable': iterable, 'compress_type': compress_type}
+        kwargs = {'arcname': arcname, 'iterable': iterable, 'compress_type': compress_type, 'attributes': attributes}
         self.paths_to_write.append(kwargs)
 
     def writestr(self, arcname, data, compress_type=None):
@@ -229,7 +229,7 @@ class ZipFile(zipfile.ZipFile):
             yield data
         return self.write_iter(arcname, _iterable(), compress_type=compress_type)
 
-    def __write(self, filename=None, iterable=None, arcname=None, compress_type=None):
+    def __write(self, filename=None, iterable=None, arcname=None, compress_type=None, attributes=None):
         """Put the bytes from filename into the archive under the name
         `arcname`."""
         if not self.fp:
@@ -253,10 +253,12 @@ class ZipFile(zipfile.ZipFile):
         if isdir:
             arcname += '/'
         zinfo = ZipInfo(arcname, date_time)
-        if st:
-            zinfo.external_attr = (st[0] & 0xFFFF) << 16      # Unix attributes
-        else:
-            zinfo.external_attr = 0o600 << 16     # ?rw-------
+        if attributes is None:
+            if st:
+                attributes = st[0] & 0xFFFF
+            else:
+                attributes = 0o600  # ?rw-------
+        zinfo.external_attr = attributes << 16
         if compress_type is None:
             zinfo.compress_type = self.compression
         else:
